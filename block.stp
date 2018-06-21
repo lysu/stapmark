@@ -1,0 +1,51 @@
+global stat
+
+probe io_schedule = kernel.function("io_schedule"){
+        #if(tid() == target_pid){
+        if(isinstr(execname(),"dd")){
+                stat[execname(), tid(), probefunc()]++;
+                count++;
+                printf("trace time:%s\n", ctime(gettimeofday_s()));
+                print_stack(backtrace());
+        }
+}
+
+probe io_schedule_timeout = kernel.function("io_schedule_timeout"){
+        #if(tid() == target_pid){
+        if(isinstr(execname(),"dd")){
+                stat[execname(), tid(), probefunc()]++;
+                count++;
+                printf("trace time:%s\n", ctime(gettimeofday_s()));
+                print_stack(backtrace());
+        }
+}
+
+probe io_schedule, io_schedule_timeout{
+}
+
+probe begin{
+        printf("begin %s\n", ctime(gettimeofday_s()));
+
+        if($# == 2){
+          if(@1 == "pid")
+               target_pid = strtol(@2, 10)
+          if(@1 == "name")
+               target_name = @2
+                printf("pid:%d name:%s\n", target_pid, target_name);
+        }else{
+                printf("arguments error\n");
+                exit();
+        }
+        printf("end %s\n", ctime(gettimeofday_s()));
+}
+
+probe timer.ms(1000){
+        printf("%s running...\n", ctime(gettimeofday_s()));
+        foreach([proc, tid, func] in stat- limit 100){
+                printf("%s:%d=>%s %d\n", proc, tid, func, stat[proc,tid,func]);
+        }
+        delete stat;
+
+        printf("%s average schedule times:%d\n", ctime(gettimeofday_s()), count);
+        count = 0;
+}
